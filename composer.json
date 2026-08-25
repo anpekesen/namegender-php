@@ -2,7 +2,16 @@
   "name": "genderscope/genderscope",
   "description": "Official PHP client for the GenderScope API",
   "type": "library",
+  "keywords": ["gender", "name", "api", "genderscope"],
+  "homepage": "https://genderscope.io/docs",
   "license": "MIT",
+  "authors": [
+    { "name": "GenderScope", "email": "support@genderscope.io", "homepage": "https://genderscope.io" }
+  ],
+  "support": {
+    "issues": "https://github.com/anpekesen/genderscope-php/issues",
+    "source": "https://github.com/anpekesen/genderscope-php"
+  },
   "require": { "php": "^8.1" },
   "autoload": { "psr-4": { "GenderScope\\": "src/" } },
   "autoload-dev": { "psr-4": { "GenderScope\\Tests\\": "tests/" } }
