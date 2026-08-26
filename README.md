@@ -1,11 +1,11 @@
-# GenderScope PHP
+# NameGender PHP
 
 ```sh
-composer require genderscope/genderscope
+composer require namegender/namegender
 ```
 
 ```php
-$client = new GenderScope\Client($_ENV['GENDERSCOPE_API_KEY']);
+$client = new NameGender\Client($_ENV['NAMEGENDER_API_KEY']);
 $result = $client->name('Ayşe', country: 'TR');
 echo $result['gender'];
 ```

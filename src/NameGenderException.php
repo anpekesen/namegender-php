@@ -1,10 +1,10 @@
 <?php
 
-namespace GenderScope;
+namespace NameGender;
 
 use RuntimeException;
 
-class GenderScopeException extends RuntimeException
+class NameGenderException extends RuntimeException
 {
     public function __construct(string $message, public readonly int $status = 0, public readonly ?array $body = null)
     {

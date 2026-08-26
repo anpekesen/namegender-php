@@ -1,12 +1,12 @@
 <?php
 
-namespace GenderScope;
+namespace NameGender;
 
 class Client
 {
     public function __construct(
         private readonly string $apiKey,
-        private readonly string $baseUrl = 'https://genderscope.io/api/v1',
+        private readonly string $baseUrl = 'https://namegender.com/api/v1',
     ) {
         if ($apiKey === '') {
             throw new \InvalidArgumentException('apiKey is required');
@@ -59,7 +59,7 @@ class Client
         $status = isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m) ? (int) $m[1] : 0;
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
         if ($status < 200 || $status >= 300 || ! is_array($decoded)) {
-            throw new GenderScopeException($decoded['message'] ?? 'GenderScope request failed', $status, $decoded);
+            throw new NameGenderException($decoded['message'] ?? 'NameGender request failed', $status, $decoded);
         }
 
         return $decoded;
