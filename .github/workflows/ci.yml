@@ -1,0 +1,22 @@
+# Packagist'te ayrı bir yayın adımı YOK: depo bir kez Packagist'e kaydedilir,
+# sonrasında her etiketi webhook ile kendisi alır. Bu iş akışı yalnızca
+# etiketlenen kodun sözdizimsel olarak sağlam olduğunu kanıtlar.
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - run: composer validate --strict
+      - run: composer install --no-interaction --no-progress
+      - run: find src -name '*.php' -print0 | xargs -0 -n1 php -l
