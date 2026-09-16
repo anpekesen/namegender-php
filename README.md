@@ -1,5 +1,8 @@
 # NameGender PHP
 
+PHP client for the [NameGender API](https://namegender.com/docs). Requires
+PHP 8.1 or later. Get an API key from the namegender.com dashboard.
+
 ```sh
 composer require namegender/namegender
 ```
