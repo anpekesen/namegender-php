@@ -33,6 +33,25 @@ class Client
         return $this->post('/gender/bulk', array_filter(['names' => array_values($names), 'country' => $country, 'type' => $type], fn ($v) => $v !== null));
     }
 
+    /**
+     * Country distribution of a name. Not a country-of-origin or ethnicity inference.
+     *
+     * `registrations` is counted volume, comparable only among countries that publish
+     * counted birth statistics; `attested_in` is presence with no weight attached.
+     *
+     * @return array{
+     *     status: bool, used_credits: int, remaining_credits: int, expires: null,
+     *     data_version: ?string, request_id: ?string, duration: string, name: string,
+     *     basis: array{counted_sources: list<string>, counted_countries: int, attested_countries: int, note: string},
+     *     registrations: list<array{country: string, count: int, share: float|int, gender: ?string, probability: int, source: string}>,
+     *     attested_in: list<string>
+     * }
+     */
+    public function countries(string $name, ?int $limit = null): array
+    {
+        return $this->post('/gender/countries', array_filter(['name' => $name, 'limit' => $limit], fn ($v) => $v !== null));
+    }
+
     public function account(): array
     {
         return $this->request('GET', '/me');
