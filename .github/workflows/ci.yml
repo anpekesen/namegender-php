@@ -1,6 +1,7 @@
 # Packagist'te ayrı bir yayın adımı YOK: depo bir kez Packagist'e kaydedilir,
 # sonrasında her etiketi webhook ile kendisi alır. Bu iş akışı yalnızca
-# etiketlenen kodun sözdizimsel olarak sağlam olduğunu kanıtlar.
+# etiketlenen kodun sözdizimsel olarak sağlam olduğunu ve testlerin geçtiğini
+# desteklenen en eski (8.1) ve en yeni (8.4) PHP sürümlerinde kanıtlar.
 name: ci
 
 on:
@@ -12,11 +13,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.4']
+    name: test (PHP ${{ matrix.php }})
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
+          coverage: none
       - run: composer validate --strict
       - run: composer install --no-interaction --no-progress
-      - run: find src -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - run: composer test

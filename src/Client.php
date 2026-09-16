@@ -138,7 +138,8 @@ class Client
         $raw = @file_get_contents(rtrim($this->baseUrl, '/').$path, false, stream_context_create($context));
         $status = isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m) ? (int) $m[1] : 0;
         $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        if ($status < 200 || $status >= 300 || ! is_array($decoded)) {
+        $decoded = is_array($decoded) ? $decoded : null;
+        if ($status < 200 || $status >= 300 || $decoded === null) {
             throw new NameGenderException($decoded['message'] ?? 'NameGender request failed', $status, $decoded);
         }
 
