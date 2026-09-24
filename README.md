@@ -51,3 +51,87 @@ and India, appear. Show `basis.note` next to any percentage you display.
 
 `limit` (1–100, default 25) caps how many counted countries come back in
 `registrations`. One credit per request.
+
+## File jobs
+
+Upload a CSV or XLSX file (up to 100 MB and 1,000,000 rows) and get it back
+with gender columns added. One credit per row, charged only if the job
+completes.
+
+```php
+$batches = $client->batches();
+
+$job = $batches->create('customers.csv', [   // a path, the file's contents (with 'filename') or a stream
+    'name_column' => 'first_name',            // required to start
+    'country_column' => 'country',            // optional: a country code per row
+]);
+
+$done = $batches->wait($job['id'], onProgress: fn (array $j) => print($j['progress']."\n"));
+if ($done['status'] === 'failed') {
+    throw new RuntimeException($done['error']['code']);
+}
+
+$batches->download($done['id'], 'customers-gender.csv');
+```
+
+`name_column` is required to start: a guessed column that turns out to be
+wrong would spend credits on the wrong data. To see the columns and the cost
+first, upload with `'start' => false`, read `$job['inspection']`, then call
+`$batches->start($job['id'], ['name_column' => ...])`.
+
+`create` sends an `Idempotency-Key` and retries network errors and 502/503/504
+with the same key, so a retry never opens a second job. Pass your own
+`idempotency_key` to keep that guarantee across your own retries.
+
+`wait` returns a failed job rather than throwing; branch on
+`$job['error']['code']`. `cancel` returns the credit of a job that has not
+started, and deletes a finished one. `list(limit:, page:)` includes jobs
+started from the dashboard. Up to three jobs can be queued or running at once;
+a fourth is refused with `429 too_many_batches`.
+
+The result appends `gender`, `probability`, `sample_size`, `country`, `source`,
+`matched_as`, `first_name`, `middle_name`, `last_name` and `name_type` to every
+row. A CSV result starts with a UTF-8 byte order mark so that Excel reads it
+correctly; strip the first three bytes before handing it to `fgetcsv`.
+
+## Webhooks
+
+Add an endpoint under Webhooks in the dashboard, and NameGender sends a signed
+`POST` to it when a file job completes or fails, and when credits are about to
+run out (`credits.low`) or have run out (`credits.depleted`, checked hourly).
+`Webhooks::verify` checks the signature and the timestamp, and returns the
+event.
+
+```php
+use NameGender\Webhooks;
+use NameGender\WebhookVerificationException;
+
+try {
+    $event = Webhooks::verify(
+        file_get_contents('php://input'),   // the raw body, not a decoded $_POST
+        $_SERVER['HTTP_NAMEGENDER_SIGNATURE'] ?? null,
+        $_ENV['NAMEGENDER_WEBHOOK_SECRET'],
+    );
+} catch (WebhookVerificationException) {
+    http_response_code(400);
+    exit;
+}
+
+http_response_code(204);
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();   // PHP-FPM: send the answer now, then do the work
+}
+
+if ($event['type'] === 'batch.completed') {
+    $job = $event['data']['object'];   // the job, as batches()->get() returns it
+}
+```
+
+In Laravel or Symfony, pass `$request->getContent()` and
+`$request->header('NameGender-Signature')` (Symfony:
+`$request->headers->get(...)`).
+
+Use `$event['id']` (also the `NameGender-Event-Id` header) to ignore a delivery
+you have already handled. A retry carries the same id, and order is not
+guaranteed. Anything other than a 2xx within 10 seconds is retried, up to 8
+attempts over about 45 hours.

@@ -118,6 +118,14 @@ class Client
         return $this->request('GET', '/me');
     }
 
+    /**
+     * File jobs: upload a CSV or XLSX file, get it back with gender columns added.
+     */
+    public function batches(): Batches
+    {
+        return new Batches($this);
+    }
+
     private function post(string $path, array $body): array
     {
         return $this->request('POST', $path, $body);
@@ -125,24 +133,45 @@ class Client
 
     private function request(string $method, string $path, ?array $body = null): array
     {
+        [$status, $raw] = $this->send($method, $path, $body === null ? null : json_encode($body, JSON_THROW_ON_ERROR));
+        $decoded = json_decode($raw, true);
+        if (! is_array($decoded)) {
+            throw new NameGenderException('NameGender request failed', $status, null);
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * One HTTP request. Returns the status and the raw body of a 2xx response
+     * and throws for anything else; status 0 means the request never got an
+     * answer (connection refused, DNS, timeout).
+     *
+     * @param  list<string>  $headers
+     * @return array{int, string}
+     */
+    private function send(string $method, string $path, ?string $content = null, string $contentType = 'application/json', array $headers = []): array
+    {
         $headers = [
             'Accept: application/json',
-            'Content-Type: application/json',
+            'Content-Type: '.$contentType,
             'Authorization: Bearer '.$this->apiKey,
+            ...$headers,
         ];
         $context = ['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'ignore_errors' => true, 'timeout' => 30]];
-        if ($body !== null) {
-            $context['http']['content'] = json_encode($body, JSON_THROW_ON_ERROR);
+        if ($content !== null) {
+            $context['http']['content'] = $content;
         }
 
         $raw = @file_get_contents(rtrim($this->baseUrl, '/').$path, false, stream_context_create($context));
         $status = isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m) ? (int) $m[1] : 0;
-        $decoded = is_string($raw) ? json_decode($raw, true) : null;
-        $decoded = is_array($decoded) ? $decoded : null;
-        if ($status < 200 || $status >= 300 || $decoded === null) {
+        $raw = is_string($raw) ? $raw : '';
+        if ($status < 200 || $status >= 300) {
+            $decoded = json_decode($raw, true);
+            $decoded = is_array($decoded) ? $decoded : null;
             throw new NameGenderException($decoded['message'] ?? 'NameGender request failed', $status, $decoded);
         }
 
-        return $decoded;
+        return [$status, $raw];
     }
 }
