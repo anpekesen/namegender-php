@@ -27,6 +27,11 @@ class Batches
     // fail the same way again.
     private const RETRYABLE = [502, 503, 504];
 
+    // Seconds a file upload or download may stall before it is given up. A
+    // file of up to 100 MB can take minutes to send, and the API reads it
+    // before answering, so the client's 30 seconds is too short.
+    private const FILE_TIMEOUT = 300;
+
     private readonly \Closure $send;
 
     private readonly \Closure $sleep;
@@ -57,7 +62,7 @@ class Batches
      *
      * @param  string|resource  $file
      * @param  array{
-     *     filename?: string, start?: bool, idempotency_key?: string, retries?: int,
+     *     filename?: string, start?: bool, idempotency_key?: string, retries?: int, timeout?: int|float,
      *     name_column?: string, country_column?: string, country?: string,
      *     ai_fallback?: bool, best_guess?: bool, delete_after_download?: bool
      * }  $options
@@ -68,7 +73,8 @@ class Batches
         $filename = $options['filename'] ?? null;
         $key = $options['idempotency_key'] ?? self::uuid();
         $retries = $options['retries'] ?? 2;
-        unset($options['filename'], $options['idempotency_key'], $options['retries']);
+        $timeout = $options['timeout'] ?? self::FILE_TIMEOUT;
+        unset($options['filename'], $options['idempotency_key'], $options['retries'], $options['timeout']);
 
         [$content, $name] = self::readFile($file, $filename);
         $fields = [];
@@ -81,7 +87,7 @@ class Batches
 
         for ($attempt = 0; ; $attempt++) {
             try {
-                return self::decode(($this->send)('POST', '/batches', $body, $contentType, ['Idempotency-Key: '.$key]));
+                return self::decode(($this->send)('POST', '/batches', $body, $contentType, ['Idempotency-Key: '.$key], $timeout));
             } catch (NameGenderException $e) {
                 // Status 0 is a network error: the upload may or may not have landed.
                 $retryable = $e->status === 0 || in_array($e->status, self::RETRYABLE, true);
@@ -167,10 +173,12 @@ class Batches
 
     /**
      * The result file as a string, or written to `$path` (which is then returned).
+     *
+     * `$timeout` is how long, in seconds, the transfer may stall.
      */
-    public function download(string $id, ?string $path = null): string
+    public function download(string $id, ?string $path = null, int|float $timeout = self::FILE_TIMEOUT): string
     {
-        [, $content] = ($this->send)('GET', '/batches/'.rawurlencode($id).'/result');
+        [, $content] = ($this->send)('GET', '/batches/'.rawurlencode($id).'/result', null, 'application/json', [], $timeout);
         if ($path === null) {
             return $content;
         }

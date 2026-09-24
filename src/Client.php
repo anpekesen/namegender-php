@@ -147,10 +147,14 @@ class Client
      * and throws for anything else; status 0 means the request never got an
      * answer (connection refused, DNS, timeout).
      *
+     * `$timeout` is in seconds. PHP's http stream applies it to connecting
+     * and to each wait for the socket, not to the whole request: a transfer
+     * that keeps moving is never cut off, one that stalls for longer is.
+     *
      * @param  list<string>  $headers
      * @return array{int, string}
      */
-    private function send(string $method, string $path, ?string $content = null, string $contentType = 'application/json', array $headers = []): array
+    private function send(string $method, string $path, ?string $content = null, string $contentType = 'application/json', array $headers = [], float $timeout = 30): array
     {
         $headers = [
             'Accept: application/json',
@@ -158,7 +162,7 @@ class Client
             'Authorization: Bearer '.$this->apiKey,
             ...$headers,
         ];
-        $context = ['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'ignore_errors' => true, 'timeout' => 30]];
+        $context = ['http' => ['method' => $method, 'header' => implode("\r\n", $headers), 'ignore_errors' => true, 'timeout' => $timeout]];
         if ($content !== null) {
             $context['http']['content'] = $content;
         }

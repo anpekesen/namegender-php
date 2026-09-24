@@ -82,6 +82,9 @@ first, upload with `'start' => false`, read `$job['inspection']`, then call
 `create` sends an `Idempotency-Key` and retries network errors and 502/503/504
 with the same key, so a retry never opens a second job. Pass your own
 `idempotency_key` to keep that guarantee across your own retries.
+`create` and `download` give up only after a transfer stalls for 300 seconds
+(other calls: 30); pass `'timeout' => ...` to `create`, or `timeout:` to
+`download`, to change that.
 
 `wait` returns a failed job rather than throwing; branch on
 `$job['error']['code']`. `cancel` returns the credit of a job that has not

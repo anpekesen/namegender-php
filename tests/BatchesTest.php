@@ -247,6 +247,32 @@ final class BatchesTest extends TestCase
         $this->assertSame([1], $this->slept);
     }
 
+    public function test_create_takes_a_timeout_option_and_defaults_to_a_long_one(): void
+    {
+        try {
+            $this->batches('/slow')->create("id\n", ['filename' => 'a.csv', 'name_column' => 'id', 'retries' => 0, 'timeout' => 0.5]);
+            $this->fail('Expected NameGenderException');
+        } catch (NameGenderException $e) {
+            $this->assertSame(0, $e->status);
+        }
+        $this->assertStringNotContainsString('name="timeout"', $this->lastRequest()['raw_body']);
+
+        // Longer than the 1.5 s the stand-in stays silent: well inside 300 s.
+        $this->assertSame('B-NEW0000001', $this->batches('/slow')->create("id\n", ['filename' => 'a.csv', 'name_column' => 'id', 'retries' => 0])['id']);
+    }
+
+    public function test_download_takes_a_timeout_and_defaults_to_a_long_one(): void
+    {
+        try {
+            $this->batches('/slow')->download('B-NEW0000001', timeout: 0.5);
+            $this->fail('Expected NameGenderException');
+        } catch (NameGenderException $e) {
+            $this->assertSame(0, $e->status);
+        }
+
+        $this->assertSame("id\n1\n", $this->batches('/slow')->download('B-NEW0000001'));
+    }
+
     public function test_start_posts_json_and_encodes_the_id(): void
     {
         $job = $this->batches()->start('B/1', ['name_column' => 'first_name', 'country_column' => 'country', 'country' => null]);

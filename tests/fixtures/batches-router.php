@@ -73,6 +73,17 @@ switch (true) {
         hit('flaky') === 1 ? respond(503, '<html>Service Unavailable</html>', 'text/html') : respond(201, job('B-NEW0000001', 'queued'));
         break;
 
+    // Silent for 1.5 s before answering, to show which timeout a call uses.
+    case $method === 'POST' && $path === '/slow/batches':
+        usleep(1_500_000);
+        respond(201, job('B-NEW0000001', 'queued'));
+        break;
+
+    case $method === 'GET' && $path === '/slow/batches/B-NEW0000001/result':
+        usleep(1_500_000);
+        respond(200, "id\n1\n", 'text/csv');
+        break;
+
     case $method === 'POST' && $path === '/down/batches':
         respond(503, '<html>Service Unavailable</html>', 'text/html');
         break;
