@@ -60,6 +60,37 @@ if ($country === null && is_array($body) && isset($body['ip'])) {
     [$country, $countrySource] = ['DE', 'ip'];
 }
 
+// Salutations for the few names the tests use: one gendered (with an
+// academic title), one whose gender is not certain, one organization.
+function salutation(string $query): array
+{
+    return match ($query) {
+        'Dr. Anna Müller' => [
+            'query' => $query, 'language' => 'de', 'form' => 'gendered', 'reason' => null,
+            'salutation' => ['formal' => 'Sehr geehrte Frau Dr. Müller,', 'informal' => 'Liebe Anna,', 'neutral' => 'Guten Tag Dr. Anna Müller,'],
+            'parts' => ['opening' => 'Sehr geehrte', 'courtesy' => 'Frau', 'academic' => 'Dr.', 'name' => 'Müller'],
+            'gender' => 'female', 'gender_source' => 'lookup', 'probability' => 99, 'confidence' => 'high',
+            'first_name' => 'Anna', 'last_name' => 'Müller', 'name_type' => 'personal', 'country' => 'DE',
+        ],
+        'Andrea Rossi' => [
+            'query' => $query, 'language' => 'de', 'form' => 'neutral', 'reason' => 'below_min_probability',
+            'salutation' => ['formal' => 'Guten Tag Andrea Rossi,', 'informal' => 'Hallo Andrea,', 'neutral' => 'Guten Tag Andrea Rossi,'],
+            'parts' => ['opening' => 'Guten Tag', 'courtesy' => null, 'academic' => null, 'name' => 'Andrea Rossi'],
+            'gender' => 'male', 'gender_source' => 'lookup', 'probability' => 62, 'confidence' => 'low',
+            'first_name' => 'Andrea', 'last_name' => 'Rossi', 'name_type' => 'personal', 'country' => null,
+        ],
+        default => [
+            'query' => $query, 'language' => 'de', 'form' => 'organization', 'reason' => null,
+            'salutation' => ['formal' => 'Sehr geehrte Damen und Herren,', 'informal' => 'Hallo,', 'neutral' => 'Sehr geehrte Damen und Herren,'],
+            'parts' => ['opening' => 'Sehr geehrte Damen und Herren', 'courtesy' => null, 'academic' => null, 'name' => null],
+            'gender' => null, 'gender_source' => null, 'probability' => null, 'confidence' => null,
+            'first_name' => null, 'last_name' => null, 'name_type' => 'organization', 'country' => null,
+        ],
+    };
+}
+
+$unsupportedLanguage = ['error' => 'invalid_input', 'message' => 'Unsupported language.', 'request_id' => 'req_7', 'field' => 'language', 'supported' => ['en', 'de', 'tr']];
+
 switch ($path) {
     case '/api/v1/gender':
         respond(200, credits(1) + ['country_source' => $countrySource] + result((string) ($body['name'] ?? ''), $country));
@@ -98,6 +129,31 @@ switch ($path) {
                 ['country' => 'US', 'count' => 2627, 'share' => 41.03, 'gender' => 'male', 'probability' => 98, 'source' => 'ssa'],
             ],
             'attested_in' => ['DE', 'NL', 'TR'],
+        ]);
+        break;
+
+    case '/api/v1/salutation':
+        if (($body['language'] ?? null) === 'xx') {
+            respond(422, $unsupportedLanguage);
+            break;
+        }
+        $query = isset($body['name']) ? (string) $body['name'] : trim(($body['first_name'] ?? '').' '.($body['last_name'] ?? ''));
+        respond(200, credits(1) + ['country_source' => $countrySource] + salutation($query));
+        break;
+
+    case '/api/v1/salutation/bulk':
+        if (($body['language'] ?? null) === 'xx') {
+            respond(422, $unsupportedLanguage);
+            break;
+        }
+        $results = array_map(fn ($n) => salutation((string) $n), (array) ($body['names'] ?? []));
+        $forms = array_count_values(array_column($results, 'form'));
+        respond(200, credits(count($results)) + [
+            'took_ms' => 4,
+            'country_source' => $countrySource,
+            'language' => 'de',
+            'summary' => ['total' => count($results), 'gendered' => $forms['gendered'] ?? 0, 'neutral' => $forms['neutral'] ?? 0, 'organization' => $forms['organization'] ?? 0],
+            'results' => $results,
         ]);
         break;
 

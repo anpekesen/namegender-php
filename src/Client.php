@@ -24,6 +24,13 @@ namespace NameGender;
  *     sample_size: int, probability: int, took_ms: int,
  *     source: string, confidence: string, matched_as: ?string
  * }
+ * @phpstan-type SalutationResult array{
+ *     query: string, language: string, form: string, reason: ?string,
+ *     salutation: array{formal: string, informal: string, neutral: string},
+ *     parts: array{opening: ?string, courtesy: ?string, academic: ?string, name: ?string},
+ *     gender: ?string, gender_source: ?string, probability: ?int, confidence: ?string,
+ *     first_name: ?string, last_name: ?string, name_type: string, country: ?string
+ * }
  */
 class Client
 {
@@ -91,6 +98,52 @@ class Client
     public function bulk(array $names, ?string $country = null, string $type = 'name', array $options = []): array
     {
         return $this->post('/gender/bulk', array_filter(['names' => array_values($names), 'country' => $country, 'type' => $type] + $options, fn ($v) => $v !== null));
+    }
+
+    /**
+     * A ready-to-use letter salutation for a name ("Sehr geehrte Frau Dr. Müller,").
+     *
+     * Pass `$name` as the full name, titles included, or pass null and give
+     * `first_name` and `last_name` in `$options` when they are stored
+     * separately. Other options: `language` (en, en-US, en-GB, de, de-AT,
+     * de-CH, fr, es, it, pt, pt-PT, pt-BR, nl, tr, pl, ja), `country`,
+     * `locale`, `ip`, `gender` ("male", "female" or "neutral"),
+     * `min_probability` (50–100, default 90) and `title` ("Dr."). When the
+     * gender is not certain the neutral form comes back; `form` and `reason`
+     * say why. `best_guess` and `ai_fallback` do not apply here. One credit.
+     *
+     * @param  array{first_name?: string, last_name?: string, language?: string, country?: string, locale?: string, ip?: string, gender?: string, min_probability?: int, title?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, country_source: ?string,
+     *     query: string, language: string, form: string, reason: ?string,
+     *     salutation: array{formal: string, informal: string, neutral: string},
+     *     parts: array{opening: ?string, courtesy: ?string, academic: ?string, name: ?string},
+     *     gender: ?string, gender_source: ?string, probability: ?int, confidence: ?string,
+     *     first_name: ?string, last_name: ?string, name_type: string, country: ?string
+     * }
+     */
+    public function salutation(?string $name, array $options = []): array
+    {
+        return $this->post('/salutation', array_filter(['name' => $name] + $options, fn ($v) => $v !== null));
+    }
+
+    /**
+     * Salutations for up to 100 names, in input order. `$options` (as for
+     * `salutation`, without `first_name`/`last_name`) applies to every name.
+     * One credit per name.
+     *
+     * @param  list<string>  $names
+     * @param  array{language?: string, country?: string, locale?: string, ip?: string, gender?: string, min_probability?: int, title?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, took_ms: int,
+     *     country_source: ?string, language: string,
+     *     summary: array{total: int, gendered: int, neutral: int, organization: int},
+     *     results: list<SalutationResult>
+     * }
+     */
+    public function salutationBulk(array $names, array $options = []): array
+    {
+        return $this->post('/salutation/bulk', array_filter(['names' => array_values($names)] + $options, fn ($v) => $v !== null));
     }
 
     /**

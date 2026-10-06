@@ -252,6 +252,72 @@ final class ClientTest extends TestCase
         $this->assertSame(['DE', 'NL', 'TR'], $result['attested_in']);
     }
 
+    public function test_salutation_sends_only_the_options_that_are_set(): void
+    {
+        $result = $this->client()->salutation('Dr. Anna Müller', ['language' => 'de', 'country' => null, 'min_probability' => 80]);
+
+        $this->assertSent('POST', '/api/v1/salutation', ['name' => 'Dr. Anna Müller', 'language' => 'de', 'min_probability' => 80]);
+        $this->assertCredits($result, 1);
+        $this->assertSame('gendered', $result['form']);
+        $this->assertNull($result['reason']);
+        $this->assertSame(['formal' => 'Sehr geehrte Frau Dr. Müller,', 'informal' => 'Liebe Anna,', 'neutral' => 'Guten Tag Dr. Anna Müller,'], $result['salutation']);
+        $this->assertSame(['opening' => 'Sehr geehrte', 'courtesy' => 'Frau', 'academic' => 'Dr.', 'name' => 'Müller'], $result['parts']);
+        $this->assertSame('female', $result['gender']);
+        $this->assertSame('lookup', $result['gender_source']);
+        $this->assertSame('personal', $result['name_type']);
+    }
+
+    public function test_salutation_with_first_and_last_name_and_every_option(): void
+    {
+        $result = $this->client()->salutation(null, [
+            'first_name' => 'Andrea', 'last_name' => 'Rossi', 'language' => 'de', 'country' => 'IT', 'locale' => 'de-DE',
+            'ip' => '203.0.113.7', 'gender' => 'neutral', 'min_probability' => 95, 'title' => 'Dr.',
+        ]);
+
+        $this->assertSent('POST', '/api/v1/salutation', [
+            'first_name' => 'Andrea', 'last_name' => 'Rossi', 'language' => 'de', 'country' => 'IT', 'locale' => 'de-DE',
+            'ip' => '203.0.113.7', 'gender' => 'neutral', 'min_probability' => 95, 'title' => 'Dr.',
+        ]);
+        $this->assertSame('country', $result['country_source']);
+        $this->assertSame('neutral', $result['form']);
+        $this->assertSame('below_min_probability', $result['reason']);
+        $this->assertSame('Guten Tag Andrea Rossi,', $result['salutation']['formal']);
+        $this->assertNull($result['parts']['courtesy']);
+        $this->assertNull($result['parts']['academic']);
+    }
+
+    public function test_salutation_bulk_keeps_input_order_and_returns_the_summary(): void
+    {
+        $result = $this->client()->salutationBulk([2 => 'Dr. Anna Müller', 'Andrea Rossi', 'ACME GmbH'], ['language' => 'de']);
+
+        $this->assertSent('POST', '/api/v1/salutation/bulk', ['names' => ['Dr. Anna Müller', 'Andrea Rossi', 'ACME GmbH'], 'language' => 'de']);
+        $this->assertCredits($result, 3);
+        $this->assertSame(4, $result['took_ms']);
+        $this->assertSame('de', $result['language']);
+        $this->assertSame(['total' => 3, 'gendered' => 1, 'neutral' => 1, 'organization' => 1], $result['summary']);
+        $this->assertSame(['Dr. Anna Müller', 'Andrea Rossi', 'ACME GmbH'], array_column($result['results'], 'query'));
+        $this->assertSame(['gendered', 'neutral', 'organization'], array_column($result['results'], 'form'));
+        $this->assertNull($result['results'][2]['parts']['name']);
+        $this->assertNull($result['results'][2]['gender']);
+        $this->assertArrayNotHasKey('credits_charged', $result['results'][0]);
+    }
+
+    public function test_salutation_unsupported_language_throws_with_the_supported_list(): void
+    {
+        foreach ([fn () => $this->client()->salutation('Dr. Anna Müller', ['language' => 'xx']), fn () => $this->client()->salutationBulk(['Dr. Anna Müller'], ['language' => 'xx'])] as $call) {
+            try {
+                $call();
+                $this->fail('Expected NameGenderException');
+            } catch (NameGenderException $e) {
+                $this->assertSame(422, $e->status);
+                $this->assertSame('Unsupported language.', $e->getMessage());
+                $this->assertSame('invalid_input', $e->body['error']);
+                $this->assertSame('language', $e->body['field']);
+                $this->assertSame(['en', 'de', 'tr'], $e->body['supported']);
+            }
+        }
+    }
+
     public function test_account_is_a_get_without_a_body(): void
     {
         $result = $this->client()->account();
