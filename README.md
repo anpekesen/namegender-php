@@ -16,15 +16,31 @@ echo $result['gender'], ' ', $result['probability'], ' ', $result['sample_size']
 ## Options and response
 
 `name`, `email`, `username` and `bulk` take an `$options` array with
-`ai_fallback` and `best_guess`:
+`ai_fallback`, `best_guess`, `locale` and `ip`:
 
 ```php
 $result = $client->name('Andrea', country: 'IT', options: ['best_guess' => true]);
 ```
 
+When you don't know the country, pass what you do know. `locale` is a language
+tag such as `it-IT` or `pt_BR`; its region is used as the country (a tag
+without a region, such as `en`, sets none). `ip` is the end user's IP address;
+the country it is in is used, and the API does not store it. `country` wins
+over `locale`, and `locale` over `ip`:
+
+```php
+$result = $client->name('Andrea', options: [
+    'locale' => 'it-IT',                // e.g. the user's app or browser language
+    'ip' => $_SERVER['REMOTE_ADDR'],    // used only if locale has no region
+]);
+echo $result['country'], ' ', $result['country_source']; // IT locale
+```
+
 A result carries `query`, `name`, `first_name`, `middle_name`, `last_name`, `name_type`, `gender`, `country`, `probability`,
 `sample_size`, `took_ms`, `source`, `confidence` and `matched_as`, alongside
-`credits_charged`, `credits_remaining`, `data_version` and `request_id`.
+`credits_charged`, `credits_remaining`, `data_version`, `request_id` and
+`country_source`. `country_source` is `country`, `locale`, `ip` or `null`, and
+says where `country` came from; `bulk` returns it once, next to `summary`.
 Success is the HTTP status: any non-2xx response throws
 `NameGender\NameGenderException` with `status` and `body`
 (`['error', 'message', 'request_id', 'docs']`). Branch on `body['error']`, not

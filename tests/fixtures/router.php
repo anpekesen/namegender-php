@@ -49,25 +49,35 @@ function result(string $query, ?string $country): array
     ];
 }
 
+// Country priority as the API applies it: country > locale (its region) > ip.
+// Any ip stands in for Germany here.
 $country = is_array($body) ? ($body['country'] ?? null) : null;
+$countrySource = $country !== null ? 'country' : null;
+if ($country === null && is_array($body) && isset($body['locale']) && preg_match('/^[a-z]{2,3}[-_]([a-z]{2})$/i', $body['locale'], $m)) {
+    [$country, $countrySource] = [strtoupper($m[1]), 'locale'];
+}
+if ($country === null && is_array($body) && isset($body['ip'])) {
+    [$country, $countrySource] = ['DE', 'ip'];
+}
 
 switch ($path) {
     case '/api/v1/gender':
-        respond(200, credits(1) + result((string) ($body['name'] ?? ''), $country));
+        respond(200, credits(1) + ['country_source' => $countrySource] + result((string) ($body['name'] ?? ''), $country));
         break;
 
     case '/api/v1/gender/email':
-        respond(200, credits(1) + result((string) ($body['email'] ?? ''), $country));
+        respond(200, credits(1) + ['country_source' => $countrySource] + result((string) ($body['email'] ?? ''), $country));
         break;
 
     case '/api/v1/gender/username':
-        respond(200, credits(1) + result((string) ($body['username'] ?? ''), $country));
+        respond(200, credits(1) + ['country_source' => $countrySource] + result((string) ($body['username'] ?? ''), $country));
         break;
 
     case '/api/v1/gender/bulk':
         $names = (array) ($body['names'] ?? []);
         respond(200, credits(count($names)) + [
             'took_ms' => 5,
+            'country_source' => $countrySource,
             'summary' => ['total' => count($names), 'identified' => count($names), 'unknown' => 0, 'match_rate' => 100],
             'results' => array_map(fn ($n) => result((string) $n, $country), $names),
         ]);

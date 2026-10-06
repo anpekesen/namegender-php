@@ -156,6 +156,27 @@ final class ClientTest extends TestCase
         $this->assertSame('IT', $result['country']);
     }
 
+    public function test_locale_and_ip_are_sent_and_country_source_comes_back(): void
+    {
+        $result = $this->client()->name('Andrea', options: ['locale' => 'it-IT']);
+        $this->assertSent('POST', '/api/v1/gender', ['name' => 'Andrea', 'locale' => 'it-IT']);
+        $this->assertSame('IT', $result['country']);
+        $this->assertSame('locale', $result['country_source']);
+
+        $result = $this->client()->email('andrea@example.com', null, ['ip' => '203.0.113.7']);
+        $this->assertSent('POST', '/api/v1/gender/email', ['email' => 'andrea@example.com', 'ip' => '203.0.113.7']);
+        $this->assertSame('ip', $result['country_source']);
+
+        $result = $this->client()->username('andrea_88', 'US', ['locale' => 'pt_BR', 'ip' => '203.0.113.7']);
+        $this->assertSent('POST', '/api/v1/gender/username', ['username' => 'andrea_88', 'country' => 'US', 'locale' => 'pt_BR', 'ip' => '203.0.113.7']);
+        $this->assertSame('US', $result['country']);
+        $this->assertSame('country', $result['country_source']);
+
+        $result = $this->client()->name('Andrea', options: ['locale' => 'en']);
+        $this->assertNull($result['country']);
+        $this->assertNull($result['country_source']);
+    }
+
     public function test_email(): void
     {
         $this->client()->email('ayse.yilmaz@example.com');
@@ -191,6 +212,16 @@ final class ClientTest extends TestCase
         $this->assertCount(2, $result['results']);
         $this->assertResult($result['results'][0]);
         $this->assertSame('John', $result['results'][1]['query']);
+    }
+
+    public function test_bulk_sends_locale_and_ip_and_returns_country_source_on_the_envelope(): void
+    {
+        $result = $this->client()->bulk(['Andrea', 'Luca'], null, 'name', ['locale' => 'it-IT', 'ip' => '203.0.113.7']);
+
+        $this->assertSent('POST', '/api/v1/gender/bulk', ['names' => ['Andrea', 'Luca'], 'type' => 'name', 'locale' => 'it-IT', 'ip' => '203.0.113.7']);
+        $this->assertSame('locale', $result['country_source']);
+        $this->assertSame('IT', $result['results'][0]['country']);
+        $this->assertArrayNotHasKey('country_source', $result['results'][0]);
     }
 
     public function test_bulk_with_one_name_or_non_list_keys_still_sends_a_json_array(): void

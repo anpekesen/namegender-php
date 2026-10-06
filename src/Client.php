@@ -12,7 +12,12 @@ namespace NameGender;
  * `$options` on the lookup methods is sent as-is: `ai_fallback` (bool) falls
  * back to a language model for names not in the database and needs AI consent
  * on the account; `best_guess` (bool) returns the most likely gender even below
- * the probability threshold.
+ * the probability threshold; `locale` (string, a language tag such as `it-IT`
+ * or `pt_BR`) supplies the country from its region when `country` is not
+ * given; `ip` (string, the end user's IP address) supplies the country from
+ * where it is when neither `country` nor a regional `locale` is given, and is
+ * not stored. Priority is country > locale > ip; `country_source` in the
+ * response ("country", "locale", "ip" or null) says which one applied.
  *
  * @phpstan-type GenderResult array{
  *     query: string, name: ?string, gender: ?string, country: ?string,
@@ -32,9 +37,9 @@ class Client
     }
 
     /**
-     * @param  array{ai_fallback?: bool, best_guess?: bool}  $options
+     * @param  array{ai_fallback?: bool, best_guess?: bool, locale?: string, ip?: string}  $options
      * @return array{
-     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string,
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, country_source: ?string,
      *     query: string, name: ?string, gender: ?string, country: ?string,
      *     sample_size: int, probability: int, took_ms: int,
      *     source: string, confidence: string, matched_as: ?string
@@ -46,9 +51,9 @@ class Client
     }
 
     /**
-     * @param  array{ai_fallback?: bool, best_guess?: bool}  $options
+     * @param  array{ai_fallback?: bool, best_guess?: bool, locale?: string, ip?: string}  $options
      * @return array{
-     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string,
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, country_source: ?string,
      *     query: string, name: ?string, gender: ?string, country: ?string,
      *     sample_size: int, probability: int, took_ms: int,
      *     source: string, confidence: string, matched_as: ?string
@@ -60,9 +65,9 @@ class Client
     }
 
     /**
-     * @param  array{ai_fallback?: bool, best_guess?: bool}  $options
+     * @param  array{ai_fallback?: bool, best_guess?: bool, locale?: string, ip?: string}  $options
      * @return array{
-     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string,
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, country_source: ?string,
      *     query: string, name: ?string, gender: ?string, country: ?string,
      *     sample_size: int, probability: int, took_ms: int,
      *     source: string, confidence: string, matched_as: ?string
@@ -75,9 +80,10 @@ class Client
 
     /**
      * @param  list<string>  $names
-     * @param  array{ai_fallback?: bool, best_guess?: bool}  $options
+     * @param  array{ai_fallback?: bool, best_guess?: bool, locale?: string, ip?: string}  $options
      * @return array{
      *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, took_ms: int,
+     *     country_source: ?string,
      *     summary: array{total: int, identified: int, unknown: int, match_rate: float|int},
      *     results: list<GenderResult>
      * }
