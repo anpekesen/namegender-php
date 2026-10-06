@@ -89,6 +89,36 @@ function salutation(string $query): array
     };
 }
 
+// Name checks for the few names the tests use: one implausible (keyboard
+// pattern), one plausible, one given only as a first name.
+function nameCheck(string $query): array
+{
+    return match ($query) {
+        'asdf qwerty' => [
+            'query' => $query, 'assessment' => 'implausible', 'score' => 0,
+            'signals' => [
+                ['code' => 'keyboard_pattern', 'severity' => 'high', 'part' => 'first_name', 'value' => 'asdf'],
+                ['code' => 'keyboard_pattern', 'severity' => 'high', 'part' => 'last_name', 'value' => 'qwerty'],
+                ['code' => 'first_name_not_found', 'severity' => 'medium', 'part' => 'first_name', 'value' => null],
+            ],
+            'first_name' => 'Asdf', 'last_name' => 'Qwerty', 'name_type' => 'personal',
+            'evidence' => ['first_name_status' => 'not_found', 'first_name_counted_records' => 0],
+        ],
+        'Jennifer Null' => [
+            'query' => $query, 'assessment' => 'plausible', 'score' => 96,
+            'signals' => [['code' => 'first_name_attested', 'severity' => 'positive', 'part' => 'first_name', 'value' => 'Jennifer']],
+            'first_name' => 'Jennifer', 'last_name' => 'Null', 'name_type' => 'personal',
+            'evidence' => ['first_name_status' => 'counted', 'first_name_counted_records' => 1468723],
+        ],
+        default => [
+            'query' => $query, 'assessment' => 'suspicious', 'score' => 45,
+            'signals' => [['code' => 'single_name', 'severity' => 'low', 'part' => null, 'value' => null]],
+            'first_name' => null, 'last_name' => null, 'name_type' => 'personal',
+            'evidence' => ['first_name_status' => null, 'first_name_counted_records' => 0],
+        ],
+    };
+}
+
 $unsupportedLanguage = ['error' => 'invalid_input', 'message' => 'Unsupported language.', 'request_id' => 'req_7', 'field' => 'language', 'supported' => ['en', 'de', 'tr']];
 
 switch ($path) {
@@ -153,6 +183,26 @@ switch ($path) {
             'country_source' => $countrySource,
             'language' => 'de',
             'summary' => ['total' => count($results), 'gendered' => $forms['gendered'] ?? 0, 'neutral' => $forms['neutral'] ?? 0, 'organization' => $forms['organization'] ?? 0],
+            'results' => $results,
+        ]);
+        break;
+
+    case '/api/v1/name-check':
+        if (! isset($body['name']) && ! isset($body['first_name']) && ! isset($body['last_name'])) {
+            respond(400, ['error' => 'missing_input', 'message' => 'Provide name, or first_name and last_name.', 'request_id' => 'req_8']);
+            break;
+        }
+        $query = isset($body['name']) ? (string) $body['name'] : trim(($body['first_name'] ?? '').' '.($body['last_name'] ?? ''));
+        respond(200, credits(1) + ['country_source' => $countrySource] + nameCheck($query));
+        break;
+
+    case '/api/v1/name-check/bulk':
+        $results = array_map(fn ($n) => nameCheck((string) $n), (array) ($body['names'] ?? []));
+        $assessments = array_count_values(array_column($results, 'assessment'));
+        respond(200, credits(count($results)) + [
+            'took_ms' => 4,
+            'country_source' => $countrySource,
+            'summary' => ['total' => count($results), 'plausible' => $assessments['plausible'] ?? 0, 'suspicious' => $assessments['suspicious'] ?? 0, 'implausible' => $assessments['implausible'] ?? 0],
             'results' => $results,
         ]);
         break;

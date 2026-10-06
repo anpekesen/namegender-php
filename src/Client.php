@@ -31,6 +31,12 @@ namespace NameGender;
  *     gender: ?string, gender_source: ?string, probability: ?int, confidence: ?string,
  *     first_name: ?string, last_name: ?string, name_type: string, country: ?string
  * }
+ * @phpstan-type NameCheckSignal array{code: string, severity: string, part: ?string, value: ?string}
+ * @phpstan-type NameCheckResult array{
+ *     query: string, assessment: string, score: int, signals: list<NameCheckSignal>,
+ *     first_name: ?string, last_name: ?string, name_type: string,
+ *     evidence: array{first_name_status: ?string, first_name_counted_records: int}
+ * }
  */
 class Client
 {
@@ -144,6 +150,51 @@ class Client
     public function salutationBulk(array $names, array $options = []): array
     {
         return $this->post('/salutation/bulk', array_filter(['names' => array_values($names)] + $options, fn ($v) => $v !== null));
+    }
+
+    /**
+     * Whether a name typed into a form looks like a real person's name.
+     *
+     * `assessment` is "plausible", "suspicious" or "implausible", `score` is
+     * 0–100 and `signals` give the reasons (`code`, `severity`, `part`,
+     * `value`). It never calls a name fake: use it to flag records for a
+     * look, not to reject people automatically. Surnames are judged by their
+     * shape only.
+     *
+     * Pass `$name` as the full name, or pass null and give `first_name` and
+     * `last_name` in `$options` when they are stored separately. Other
+     * options: `country`, `locale`, `ip`. `best_guess`, `ai_fallback` and
+     * `language` do not apply here. One credit.
+     *
+     * @param  array{first_name?: string, last_name?: string, country?: string, locale?: string, ip?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, country_source: ?string,
+     *     query: string, assessment: string, score: int, signals: list<NameCheckSignal>,
+     *     first_name: ?string, last_name: ?string, name_type: string,
+     *     evidence: array{first_name_status: ?string, first_name_counted_records: int}
+     * }
+     */
+    public function nameCheck(?string $name, array $options = []): array
+    {
+        return $this->post('/name-check', array_filter(['name' => $name] + $options, fn ($v) => $v !== null));
+    }
+
+    /**
+     * Name checks for up to 100 names, in input order. `$options` (`country`,
+     * `locale`, `ip`) applies to every name. One credit per name.
+     *
+     * @param  list<string>  $names
+     * @param  array{country?: string, locale?: string, ip?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, data_version: ?string, request_id: ?string, took_ms: int,
+     *     country_source: ?string,
+     *     summary: array{total: int, plausible: int, suspicious: int, implausible: int},
+     *     results: list<NameCheckResult>
+     * }
+     */
+    public function nameCheckBulk(array $names, array $options = []): array
+    {
+        return $this->post('/name-check/bulk', array_filter(['names' => array_values($names)] + $options, fn ($v) => $v !== null));
     }
 
     /**

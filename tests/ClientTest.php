@@ -318,6 +318,64 @@ final class ClientTest extends TestCase
         }
     }
 
+    public function test_name_check_sends_only_the_options_that_are_set(): void
+    {
+        $result = $this->client()->nameCheck('asdf qwerty', ['country' => null, 'locale' => 'de-DE']);
+
+        $this->assertSent('POST', '/api/v1/name-check', ['name' => 'asdf qwerty', 'locale' => 'de-DE']);
+        $this->assertCredits($result, 1);
+        $this->assertSame('locale', $result['country_source']);
+        $this->assertSame('implausible', $result['assessment']);
+        $this->assertSame(0, $result['score']);
+        $this->assertSame(['code' => 'keyboard_pattern', 'severity' => 'high', 'part' => 'first_name', 'value' => 'asdf'], $result['signals'][0]);
+        $this->assertNull($result['signals'][2]['value']);
+        $this->assertSame('Asdf', $result['first_name']);
+        $this->assertSame('personal', $result['name_type']);
+        $this->assertSame(['first_name_status' => 'not_found', 'first_name_counted_records' => 0], $result['evidence']);
+    }
+
+    public function test_name_check_with_first_and_last_name_and_every_option(): void
+    {
+        $result = $this->client()->nameCheck(null, ['first_name' => 'Jennifer', 'last_name' => 'Null', 'country' => 'US', 'locale' => 'en-US', 'ip' => '203.0.113.7']);
+
+        $this->assertSent('POST', '/api/v1/name-check', ['first_name' => 'Jennifer', 'last_name' => 'Null', 'country' => 'US', 'locale' => 'en-US', 'ip' => '203.0.113.7']);
+        $this->assertSame('country', $result['country_source']);
+        $this->assertSame('plausible', $result['assessment']);
+        $this->assertSame(96, $result['score']);
+        $this->assertSame('positive', $result['signals'][0]['severity']);
+        $this->assertSame('counted', $result['evidence']['first_name_status']);
+    }
+
+    public function test_name_check_bulk_keeps_input_order_and_returns_the_summary(): void
+    {
+        $result = $this->client()->nameCheckBulk([2 => 'asdf qwerty', 'Jennifer Null', 'Madonna'], ['ip' => '203.0.113.7']);
+
+        $this->assertSent('POST', '/api/v1/name-check/bulk', ['names' => ['asdf qwerty', 'Jennifer Null', 'Madonna'], 'ip' => '203.0.113.7']);
+        $this->assertCredits($result, 3);
+        $this->assertSame(4, $result['took_ms']);
+        $this->assertSame('ip', $result['country_source']);
+        $this->assertSame(['total' => 3, 'plausible' => 1, 'suspicious' => 1, 'implausible' => 1], $result['summary']);
+        $this->assertSame(['asdf qwerty', 'Jennifer Null', 'Madonna'], array_column($result['results'], 'query'));
+        $this->assertSame(['implausible', 'plausible', 'suspicious'], array_column($result['results'], 'assessment'));
+        $this->assertSame(['code' => 'single_name', 'severity' => 'low', 'part' => null, 'value' => null], $result['results'][2]['signals'][0]);
+        $this->assertNull($result['results'][2]['evidence']['first_name_status']);
+        $this->assertNull($result['results'][2]['first_name']);
+        $this->assertArrayNotHasKey('credits_charged', $result['results'][0]);
+    }
+
+    public function test_name_check_without_a_name_throws_the_api_error(): void
+    {
+        try {
+            $this->client()->nameCheck(null);
+            $this->fail('Expected NameGenderException');
+        } catch (NameGenderException $e) {
+            $this->assertSent('POST', '/api/v1/name-check', []);
+            $this->assertSame(400, $e->status);
+            $this->assertSame('missing_input', $e->body['error']);
+            $this->assertSame('req_8', $e->body['request_id']);
+        }
+    }
+
     public function test_account_is_a_get_without_a_body(): void
     {
         $result = $this->client()->account();
