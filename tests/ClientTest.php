@@ -376,6 +376,84 @@ final class ClientTest extends TestCase
         }
     }
 
+    public function test_age_sends_only_the_options_that_are_set_and_parses_both_ranges(): void
+    {
+        $result = $this->client()->age('Brittany', ['gender' => null, 'country' => '', 'locale' => 'en-US']);
+
+        $this->assertSent('POST', '/api/v1/age', ['name' => 'Brittany', 'locale' => 'en-US']);
+        $this->assertSame(1, $result['credits_charged']);
+        $this->assertSame(99, $result['credits_remaining']);
+        $this->assertSame('req_1', $result['request_id']);
+        $this->assertArrayNotHasKey('data_version', $result);
+        $this->assertSame('locale', $result['country_source']);
+        $this->assertSame('Brittany', $result['first_name']);
+        $this->assertNull($result['gender']);
+        $this->assertSame(36, $result['age']);
+        $this->assertSame(['low' => 32, 'high' => 38], $result['age_range']);
+        $this->assertSame(['low' => 28, 'high' => 41], $result['age_range_80']);
+        $this->assertSame(1990, $result['birth_year']);
+        $this->assertSame(353775, $result['sample_size']);
+        $this->assertSame(361434, $result['births']);
+        $this->assertSame('US', $result['country']);
+        $this->assertSame('ssa', $result['source']);
+        $this->assertSame('1880-2024', $result['series']);
+        $this->assertSame(2026, $result['reference_year']);
+        $this->assertNull($result['reason']);
+    }
+
+    public function test_age_with_every_option_and_no_hint_uses_the_default_country(): void
+    {
+        $result = $this->client()->age('Brittany', ['gender' => 'female', 'country' => 'US', 'locale' => 'en-US', 'ip' => '203.0.113.7']);
+        $this->assertSent('POST', '/api/v1/age', ['name' => 'Brittany', 'gender' => 'female', 'country' => 'US', 'locale' => 'en-US', 'ip' => '203.0.113.7']);
+        $this->assertSame('country', $result['country_source']);
+        $this->assertSame('female', $result['gender']);
+
+        $result = $this->client()->age('Brittany');
+        $this->assertSent('POST', '/api/v1/age', ['name' => 'Brittany']);
+        $this->assertSame('default', $result['country_source']);
+    }
+
+    public function test_age_for_a_country_not_covered_is_a_normal_answer_with_no_credit(): void
+    {
+        $result = $this->client()->age('Brittany', ['country' => 'DE']);
+
+        $this->assertSent('POST', '/api/v1/age', ['name' => 'Brittany', 'country' => 'DE']);
+        $this->assertSame(0, $result['credits_charged']);
+        $this->assertNull($result['age']);
+        $this->assertNull($result['age_range']);
+        $this->assertNull($result['age_range_80']);
+        $this->assertNull($result['birth_year']);
+        $this->assertNull($result['source']);
+        $this->assertSame('country_not_covered', $result['reason']);
+    }
+
+    public function test_age_bulk_keeps_input_order(): void
+    {
+        $result = $this->client()->ageBulk([3 => 'Brittany', 'Zzyzx'], ['gender' => 'female', 'ip' => null]);
+
+        $this->assertSent('POST', '/api/v1/age/bulk', ['names' => ['Brittany', 'Zzyzx'], 'gender' => 'female']);
+        $this->assertSame(2, $result['credits_charged']);
+        $this->assertSame(99, $result['credits_remaining']);
+        $this->assertSame('req_1', $result['request_id']);
+        $this->assertSame('default', $result['country_source']);
+        $this->assertSame(['Brittany', 'Zzyzx'], array_column($result['results'], 'name'));
+        $this->assertSame([36, null], array_column($result['results'], 'age'));
+        $this->assertSame(['low' => 28, 'high' => 41], $result['results'][0]['age_range_80']);
+        $this->assertSame('not_found', $result['results'][1]['reason']);
+        $this->assertArrayNotHasKey('credits_charged', $result['results'][0]);
+    }
+
+    public function test_age_errors_throw_the_api_error(): void
+    {
+        try {
+            $this->client('/no-such-prefix')->age('Brittany');
+            $this->fail('Expected NameGenderException');
+        } catch (NameGenderException $e) {
+            $this->assertSame(402, $e->status);
+            $this->assertSame('no_credits', $e->body['error']);
+        }
+    }
+
     public function test_account_is_a_get_without_a_body(): void
     {
         $result = $this->client()->account();

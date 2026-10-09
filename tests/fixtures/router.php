@@ -119,6 +119,38 @@ function nameCheck(string $query): array
     };
 }
 
+// Ages for the few names the tests use: one found (Brittany), one in a
+// country the age data does not cover (any non-US/FR/NO country), one not
+// found. Age responses carry no data_version, and with no country hint the
+// API uses US data and says country_source "default".
+function age(string $name, ?string $country, ?string $gender): array
+{
+    $country ??= 'US';
+    if (! in_array($country, ['US', 'FR', 'NO'], true)) {
+        return [
+            'name' => $name, 'first_name' => $name, 'gender' => $gender, 'age' => null,
+            'age_range' => null, 'age_range_80' => null, 'birth_year' => null,
+            'sample_size' => 0, 'births' => 0, 'country' => $country,
+            'source' => null, 'series' => null, 'reference_year' => 2026, 'reason' => 'country_not_covered',
+        ];
+    }
+
+    return match ($name) {
+        'Brittany' => [
+            'name' => $name, 'first_name' => $name, 'gender' => $gender, 'age' => 36,
+            'age_range' => ['low' => 32, 'high' => 38], 'age_range_80' => ['low' => 28, 'high' => 41], 'birth_year' => 1990,
+            'sample_size' => 353775, 'births' => 361434, 'country' => $country,
+            'source' => 'ssa', 'series' => '1880-2024', 'reference_year' => 2026, 'reason' => null,
+        ],
+        default => [
+            'name' => $name, 'first_name' => null, 'gender' => $gender, 'age' => null,
+            'age_range' => null, 'age_range_80' => null, 'birth_year' => null,
+            'sample_size' => 0, 'births' => 0, 'country' => $country,
+            'source' => null, 'series' => null, 'reference_year' => 2026, 'reason' => 'not_found',
+        ],
+    };
+}
+
 $unsupportedLanguage = ['error' => 'invalid_input', 'message' => 'Unsupported language.', 'request_id' => 'req_7', 'field' => 'language', 'supported' => ['en', 'de', 'tr']];
 
 switch ($path) {
@@ -205,6 +237,20 @@ switch ($path) {
             'summary' => ['total' => count($results), 'plausible' => $assessments['plausible'] ?? 0, 'suspicious' => $assessments['suspicious'] ?? 0, 'implausible' => $assessments['implausible'] ?? 0],
             'results' => $results,
         ]);
+        break;
+
+    case '/api/v1/age':
+        $result = age((string) ($body['name'] ?? ''), $country, $body['gender'] ?? null);
+        $charged = $result['reason'] === 'country_not_covered' ? 0 : 1;
+        respond(200, ['credits_charged' => $charged, 'credits_remaining' => 99, 'request_id' => 'req_1']
+            + array_slice($result, 0, 11) + ['country_source' => $countrySource ?? 'default'] + array_slice($result, 11));
+        break;
+
+    case '/api/v1/age/bulk':
+        $results = array_map(fn ($n) => age((string) $n, $country, $body['gender'] ?? null), (array) ($body['names'] ?? []));
+        $charged = count(array_filter($results, fn ($r) => $r['reason'] !== 'country_not_covered'));
+        $results = array_map(fn ($r) => array_slice($r, 0, 11) + ['country_source' => $countrySource ?? 'default'] + array_slice($r, 11), $results);
+        respond(200, ['credits_charged' => $charged, 'credits_remaining' => 99, 'request_id' => 'req_1', 'country_source' => $countrySource ?? 'default', 'results' => $results]);
         break;
 
     case '/api/v1/me':

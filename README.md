@@ -105,6 +105,36 @@ has `code`, `severity`, `part` and `value` (the last two possibly `null`).
 It never calls a name fake: use it to flag records for a second look, not to
 reject people automatically. Surnames are judged by their shape only.
 
+## Age from name
+
+Estimates how old the people who carry a first name are, from birth records.
+
+```php
+$result = $client->age('Brittany');
+echo $result['age'];   // 36 (median)
+print_r($result['age_range']);   // ['low' => 32, 'high' => 38], the middle half
+print_r($result['age_range_80']);   // ['low' => 28, 'high' => 41], the middle 80%
+echo $result['birth_year'];   // 1990
+
+$result = $client->age('Brittany', ['gender' => 'female', 'country' => 'US']);
+
+$result = $client->ageBulk(['Brittany', 'Margaret']);
+echo $result['results'][1]['age'];
+```
+
+Options: `gender` (`male` or `female`; narrows to that gender's records),
+`country`, `locale` and `ip`. One credit per name; `ageBulk` takes up to 100
+names and returns `results` in input order.
+
+It covers the US, France and Norway; without a country hint US data is used
+and `country_source` is `default`. When `age` is `null`, `reason` says why
+(`not_found`, `insufficient_data` or `country_not_covered`): this is a normal
+answer, not an exception, and `country_not_covered` costs no credit. Age
+responses carry no `data_version`.
+
+It describes a group, not a person: never use it for decisions about an
+individual.
+
 ## Country distribution
 
 Returns the countries a name is recorded in. This is not a country-of-origin or

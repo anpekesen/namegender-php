@@ -37,6 +37,13 @@ namespace NameGender;
  *     first_name: ?string, last_name: ?string, name_type: string,
  *     evidence: array{first_name_status: ?string, first_name_counted_records: int}
  * }
+ * @phpstan-type AgeRange array{low: int, high: int}
+ * @phpstan-type AgeResult array{
+ *     name: string, first_name: ?string, gender: ?string, age: ?int,
+ *     age_range: ?AgeRange, age_range_80: ?AgeRange, birth_year: ?int,
+ *     sample_size: int, births: int, country: ?string, country_source: string,
+ *     source: ?string, series: ?string, reference_year: int, reason: ?string
+ * }
  */
 class Client
 {
@@ -195,6 +202,54 @@ class Client
     public function nameCheckBulk(array $names, array $options = []): array
     {
         return $this->post('/name-check/bulk', array_filter(['names' => array_values($names)] + $options, fn ($v) => $v !== null));
+    }
+
+    /**
+     * Estimated age of the people who carry a first name, from birth records.
+     *
+     * `age` is the median age, `age_range` the middle half and `age_range_80`
+     * the middle 80 percent (`low`, `high`); `birth_year` is the median birth
+     * year. It describes a group, not a person: never use it for decisions
+     * about an individual.
+     *
+     * Covers the US, France and Norway. Without a country hint US data is used
+     * and `country_source` is "default". When `age` is null, `reason` says why
+     * ("not_found", "insufficient_data" or "country_not_covered"); this is a
+     * normal answer, not an error, and "country_not_covered" costs no credit.
+     *
+     * Options: `gender` ("male" or "female", narrows to that gender's
+     * records), `country`, `locale`, `ip`. Responses carry no `data_version`.
+     * One credit.
+     *
+     * @param  array{gender?: string, country?: string, locale?: string, ip?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, request_id: ?string,
+     *     name: string, first_name: ?string, gender: ?string, age: ?int,
+     *     age_range: ?AgeRange, age_range_80: ?AgeRange, birth_year: ?int,
+     *     sample_size: int, births: int, country: ?string, country_source: string,
+     *     source: ?string, series: ?string, reference_year: int, reason: ?string
+     * }
+     */
+    public function age(string $name, array $options = []): array
+    {
+        return $this->post('/age', array_filter(['name' => $name] + $options, fn ($v) => $v !== null && $v !== ''));
+    }
+
+    /**
+     * Ages for up to 100 names, in input order. `$options` (`gender`,
+     * `country`, `locale`, `ip`) applies to every name. One credit per name,
+     * none for a name whose country is not covered.
+     *
+     * @param  list<string>  $names
+     * @param  array{gender?: string, country?: string, locale?: string, ip?: string}  $options
+     * @return array{
+     *     credits_charged: int, credits_remaining: int, request_id: ?string, country_source: string,
+     *     results: list<AgeResult>
+     * }
+     */
+    public function ageBulk(array $names, array $options = []): array
+    {
+        return $this->post('/age/bulk', array_filter(['names' => array_values($names)] + $options, fn ($v) => $v !== null && $v !== ''));
     }
 
     /**
